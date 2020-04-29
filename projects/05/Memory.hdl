@@ -1,0 +1,49 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/05/Memory.hdl
+
+/**
+ * The complete address space of the Hack computer's memory,
+ * including RAM and memory-mapped I/O. 
+ * The chip facilitates read and write operations, as follows:
+ *     Read:  out(t) = Memory[address(t)](t)
+ *     Write: if load(t-1) then Memory[address(t-1)](t) = in(t-1)
+ * In words: the chip always outputs the value stored at the memory 
+ * location specified by address. If load==1, the in value is loaded 
+ * into the memory location specified by address. This value becomes 
+ * available through the out output from the next time step onward.
+ * Address space rules:
+ * Only the upper 16K+8K+1 words of the Memory chip are used. 
+ * Access to address>0x6000 is invalid. Access to any address in 
+ * the range 0x4000-0x5FFF results in accessing the screen memory 
+ * map. Access to address 0x6000 results in accessing the keyboard 
+ * memory map. The behavior in these addresses is described in the 
+ * Screen and Keyboard chip specifications given in the book.
+ */
+
+CHIP Memory {
+    IN in[16], load, address[15];
+    OUT out[16];
+
+    PARTS:
+    DMux(in=load, sel=address[14], a=loadRAM, b=notRAM);        // if address[14] == 0, loadRAM = 1, else loadRAM = 0
+    DMux(in=notRAM, sel=address[13], a=loadScreen, b=notScreen);// if address[14,13] == 10, loadScreen = 1, else loadScreen = 0
+
+    RAM16K(in=in, load=loadRAM, address=address[0..13], out=outRAM);        // note: Keyboard does NOT need loading
+    Screen(in=in, load=loadScreen, address=address[0..12], out=outScreen);
+
+    Mux16(a=outRAM, b=notOutRAM, sel=address[14], out=out);                 // if address[14] == 0, out = outRAM
+    Mux16(a=outScreen, b=outBelowScreen, sel=address[13], out=notOutRAM);   // if address[14,13] == 10, out = outScreen
+
+    Or8Way(in=address[0..7], out=or07);
+    Or(a=or07, b=address[8], out=or08);
+    Or(a=or08, b=address[9], out=or09);         // 24576 is 0110 0000 0000 0000
+    Or(a=or09, b=address[10], out=or010);       // address[12..0] are all 0s
+    Or(a=or010, b=address[11], out=or011);    
+    Or(a=or011, b=address[12], out=or012);      // or012 will be 0 iff (address == 24576)
+
+    Keyboard(out=outKeyboard);
+
+    Mux16(a=outKeyboard, b=false, sel=or012, out=outBelowScreen);
+}
