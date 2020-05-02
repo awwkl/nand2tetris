@@ -1,0 +1,48 @@
+function main
+    push 3
+    call factorial
+    return
+
+function factorial(n)
+    push n
+    push 1
+    eq
+    if-goto BASECASE
+    push n
+    push n
+    push 1
+    sub
+    call factorial
+    call mult
+    return
+
+label BASECASE
+    push 1
+    return
+
+function mult(a,b)
+    // omitted
+
+// actual VM code
+
+function main 0
+    push constant 3
+    call factorial 1
+    return
+
+function factorial 0
+    push argument 0
+    push constant 1
+    eq
+    if-goto BASECASE
+    push argument 0
+    push argument 0
+    push constant 1
+    sub
+    call factorial 1
+    call mult 2
+    return
+
+label BASECASE
+    push constant 1
+    return

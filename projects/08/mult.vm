@@ -1,0 +1,42 @@
+// int mult(int x, int y) {
+//     int sum = 0;
+//     int n = 1;
+
+//     while !(n > y) {
+//         sum += x;
+//         n++;
+//     }
+    
+//     return sum;
+// }
+
+function mult(x,y)
+  push 0
+  pop sum
+	push 1
+	pop n
+label LOOP
+	push n
+	push y
+	sub
+	gt
+	if-goto ENDLOOP
+		// @SP
+		// M=M-1
+		// A=M
+		// D=M
+		// D=D+1
+		// @ENDLOOP
+		// D;JEQ
+	push sum
+	push x
+	add
+	pop sum
+	push n
+	push 1
+	add
+	pop n
+	goto LOOP
+label ENDLOOP
+	push sum
+	return
