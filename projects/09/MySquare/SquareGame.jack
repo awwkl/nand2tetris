@@ -1,0 +1,39 @@
+// SquareGame class. Called to play the game
+
+class SquareGame {
+	field Square square;	// the square of the game
+	field int direction;
+
+	constructor SquareGame new() {
+		let square = Square.new(0, 0, 30);
+		let direction = 0;
+		return this;
+	}
+	
+	method void dispose() {
+		do square.dispose();
+		do Memory.deAlloc(this);
+		return;
+	}
+
+	method void run() {
+		var char key;				// currently pressed key
+		var boolean exit;
+		let exit = false;
+
+		while (~exit) {
+			let key = Keyboard.keyPressed();
+
+			if (key = 81) 	{ let exit = true; }				// q key
+			if (key = 90) 	{ do square.decSize(); }		// z key
+			if (key = 88) 	{ do square.incSize(); }		// x key
+			if (key = 131) 	{ do square.moveUp(); }			// up arrow
+			if (key = 133)	{ do square.moveDown(); }		// down arrow
+			if (key = 130)	{ do square.moveLeft(); }		// left arrow
+			if (key = 132)	{ do square.moveRight(); }	// right arrow
+
+			do Sys.wait(15);
+		}
+		return;
+	}
+}

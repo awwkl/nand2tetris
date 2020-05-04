@@ -1,0 +1,38 @@
+var char c; let c = 65; // 'A'
+
+var String s; let s = "A"; let c = s.charAt(0)
+
+var Array arr;
+
+let arr = 5000;
+
+let arr[100] = 17
+
+var Fraction x;
+var Array arr;
+
+let arr = Array.new(2);
+let arr[0] = 2; let arr[1] = 5;
+let x = arr;
+do x.print()
+
+clas Foo {
+    field variable declarations
+    static variable declarations
+
+    subroutine declarations
+}
+
+constructor/method/function type subroutineName (parameter-list) {
+    local variable declarations
+    statements
+}
+
+static => class-level
+field => instances
+local variables => subroutines
+parameter variables => passed from outside
+
+weakly typed => variables can be re-assigned
+
+let, if, while, do, return

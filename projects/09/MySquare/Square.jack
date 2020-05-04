@@ -1,0 +1,97 @@
+// This is my version of Square.jack class
+// ** square moves once for each time key is pressed
+// subroutine type name(param-list)
+
+class Square {
+	// field = instance variables
+	field int x, y;		// location coordinates
+	field int size;		// size properties
+
+	// create new square, given location and size
+	constructor Square new(int Ax, int Ay, int Asize) {
+		let x = Ax;
+		let y = Ay;
+		let size = Asize;
+		do draw();
+		return this;
+	}
+
+	method void dispose() {		// dispose square
+		do Memory.deAlloc(this);
+		return;
+	}
+
+	method void draw() {			// draw square
+		do Screen.setColor(true);
+		do Screen.drawRectangle(x, y, x + size, y + size);
+		return;
+	}
+
+	method void erase() {			// erase square
+		do Screen.setColor(false);
+		do Screen.drawRectangle(x, y, x + size, y + size);
+		return;
+	}
+
+	method void incSize() {		// increase size by 2px
+		if ((x + size < 510) & (y + size < 254)) {
+			do erase();
+			let size = size + 2;
+			do draw();
+		}
+		return;
+	}
+
+	method void decSize() {		// decrease size by 2px
+		if (size > 2) {
+			do erase();
+			let size = size - 2;
+			do draw();
+		}
+		return;
+	}
+
+	method void moveUp() {		// moves square up by 2px
+		if (y > 1) {
+			do Screen.setColor(false);
+			do Screen.drawRectangle(x, (y + size) - 1, x + size, y + size);
+			let y = y - 2;
+			do Screen.setColor(true);
+			do Screen.drawRectangle(x, y, x + size, y + 1);
+		}
+		return;
+	}
+
+	method void moveDown() {	// moves square down by 2px
+		if ((y + size) < 254) {
+			do Screen.setColor(false);
+			do Screen.drawRectangle(x, y, x + size, y + 1);
+			let y = y + 2;
+			do Screen.setColor(true);
+			do Screen.drawRectangle(x, (y + size) - 1, x + size, y + size);
+		}
+		return;
+	}
+
+	method void moveLeft() {	// moves square left by 2px
+		if (x > 1) {
+			do Screen.setColor(false);
+			do Screen.drawRectangle((x + size) - 1, y, x + size, y + size);
+			let x = x - 2;
+			do Screen.setColor(true);
+			do Screen.drawRectangle(x, y, x + 1, y + size);
+		}
+		return;
+	}
+
+	method void moveRight() {	// move square right by 2px
+		if ((x + size) < 510) {
+			do Screen.setColor(false);
+			do Screen.drawRectangle(x, y, x + 1, y + size);
+			let x = x + 2;
+			do Screen.setColor(true);
+			do Screen.drawRectangle((x + size) - 1, y, x + size, y + size);
+		}
+		return;
+	}
+}

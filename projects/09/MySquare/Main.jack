@@ -1,0 +1,9 @@
+class Main {
+  function void main() {
+		var SquareGame game;
+		let game = SquareGame.new();	// create game
+		do game.run();								// run game
+		do game.dispose();						// when game exits, dispose game
+		return;
+	}
+}
