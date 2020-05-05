@@ -36,11 +36,15 @@ def tokenize(jack_filename):                                    # tokenize("Squa
 
     tokens = [x for x in tokens if x.strip() != ""]             # after splitting by spaces
 
-    xml_tokens = convertToXML(tokens)                           # convert tokens to XML tokens
-    xml_tokens.insert(0, "<tokens>")
-    xml_tokens.append("</tokens>")                              # <tokens> ... </tokens>
+    # xml_tokens = convertToXML(tokens)                           # convert tokens to XML tokens
+    # xml_tokens.insert(0, "<tokens>")
+    # xml_tokens.append("</tokens>")                              # <tokens> ... </tokens>
 
-    return xml_tokens
+    for i in range(len(tokens)):
+        tokens[i] = tokens[i].replace("&", "&amp;")         # & => &amp;
+        tokens[i] = tokens[i].replace("<", "&lt;")          # < => &lt;
+        tokens[i] = tokens[i].replace(">", "&gt;")          # > => &gt;
+    return tokens
     
 
 def convertToXML(tokens):                                       # var => <keyword> var </keyword>

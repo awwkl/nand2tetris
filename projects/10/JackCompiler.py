@@ -1,6 +1,7 @@
 import os
 import sys
 import JackTokenizer
+import CompilationEngine
 
 def main():
     pathname = sys.argv[1]                                  # python3 JackCompiler.py Square/
@@ -36,10 +37,15 @@ def generateXML(foldername, filename):                      # (Square/mine/, Mai
     xml_filename = foldername + filename.split(".")[0] + ".xml"     # Square/mine/Main.xml
     xml_file = open(xml_filename, "w")
 
-    for i, token in enumerate(tokens):
-        tokens[i] += "\n"
+    # for i, token in enumerate(tokens):
+    #     tokens[i] += "\n"
 
-    xml_file.writelines(tokens)
+    parsed_tokens = CompilationEngine.compileTokens(tokens) # return parsed tokens
+
+    for i, token in enumerate(parsed_tokens):
+        parsed_tokens[i] += "\n"
+
+    xml_file.writelines(parsed_tokens)                      # write parsed tokens to xml file
 
 
 main()
