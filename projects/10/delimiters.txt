@@ -1,0 +1,16 @@
+space
+\n
+(
+)
+;
+,
+.
+=
+later strip string quotes
+<
+[
+]
++
+-
+*
+/
