@@ -1,11 +1,12 @@
 import re
 
-def tokenize(jack_filename):
-    tokens = []
-    final_tokens = []
+def tokenize(jack_filename):                                    # tokenize("Square/Main.jack")
+    split_lines = []    # after splitting by symbols
+    tokens = []         # after splitting by spaces
+    xml_tokens = []     # after adding xml markup
 
     jack_file = open(jack_filename, "r")
-    lines = jack_file.readlines()
+    lines = jack_file.readlines()                               # lines of .jack file
 
     for line in lines:
         line = line.strip()
@@ -14,48 +15,52 @@ def tokenize(jack_filename):
             continue
         if line.startswith("/**") or line.startswith("/*"):     # if comment line
             continue
-        if line.strip().startswith("*"):
+        if line.strip().startswith("*"):                        # multi-line comment
             continue
 
         line = line.split("//")[0].strip()                      # remove trailing comment
-        line = re.split("([}{\(\)\[\].,;\+\-*/&|<>=~])", line)  # split by symbols, but do not remove symbols
 
-        tokens += line
+        # split by symbols, but do not remove symbols
+        line = re.split("([}{\(\)\[\].,;\+\-*/&|<>=~])", line)  # "class Main {" => ["class Main", "{"]
 
-    tokens = [x for x in tokens if x.strip() != ""]
+        split_lines += line
 
-    for i in range(len(tokens)):
-        tokens[i] = tokens[i].strip()
-        if tokens[i].startswith('"'):
-            final_tokens.append(tokens[i])                      # add string to list
+    split_lines = [x for x in split_lines if x.strip() != ""]             # remove empty lines
+
+    for i in range(len(split_lines)):
+        split_lines[i] = split_lines[i].strip()
+        if split_lines[i].startswith('"'):
+            tokens.append(split_lines[i])                       # add "string of words" to list
         else:
-            final_tokens += tokens[i].split(" ")                # add list of tokens to final list
+            tokens += split_lines[i].split(" ")                 # add list of tokens to final list
 
-    final_tokens = [x for x in final_tokens if x.strip() != ""]
+    tokens = [x for x in tokens if x.strip() != ""]             # after splitting by spaces
 
-    final_tokens = convertToXML(final_tokens)
-    final_tokens.insert(0, "<tokens>")
-    final_tokens.append("</tokens>")
+    xml_tokens = convertToXML(tokens)                           # convert tokens to XML tokens
+    xml_tokens.insert(0, "<tokens>")
+    xml_tokens.append("</tokens>")                              # <tokens> ... </tokens>
 
-    return final_tokens
+    return xml_tokens
     
 
-def convertToXML(tokens):
-
+def convertToXML(tokens):                                       # var => <keyword> var </keyword>
     for i in range(len(tokens)):
-        
         if tokens[i] in keyword_list:
             tokens[i] = "<keyword> " + tokens[i] + " </keyword>"
+
         elif tokens[i] in symbol_list:
-            tokens[i] = tokens[i].replace("&", "&amp;")
-            tokens[i] = tokens[i].replace("<", "&lt;")
-            tokens[i] = tokens[i].replace(">", "&gt;")
+            tokens[i] = tokens[i].replace("&", "&amp;")         # & => &amp;
+            tokens[i] = tokens[i].replace("<", "&lt;")          # < => &lt;
+            tokens[i] = tokens[i].replace(">", "&gt;")          # > => &gt;
             tokens[i] = "<symbol> " + tokens[i] + " </symbol>"
-        elif tokens[i].isdigit():
+
+        elif tokens[i].isdigit():                               # <integerConstant> 16 </integerConstant>
             tokens[i] = "<integerConstant> " + tokens[i] + " </integerConstant>"
-        elif tokens[i].startswith('"'):
+
+        elif tokens[i].startswith('"'):                         # <stringConstant> string constant </stringConstant>
             tokens[i] = "<stringConstant> " + tokens[i][1:-1] + " </stringConstant>"
-        else:
+
+        else:                                                   # otherwise, it is an identifier
             tokens[i] = "<identifier> " + tokens[i] + " </identifier>"
     
     return tokens
