@@ -1,6 +1,6 @@
 import re
 
-def tokenize(jack_filename):                                    # tokenize("Square/Main.jack")
+def tokenize(jack_filename):                                    # receives a file; tokenize("Square/Main.jack")
     split_lines = []    # after splitting by symbols
     tokens = []         # after splitting by spaces
     xml_tokens = []     # after adding xml markup
