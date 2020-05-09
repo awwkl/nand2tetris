@@ -20,12 +20,16 @@ def tokenize(jack_filename):                                    # receives a fil
 
         line = line.split("//")[0].strip()                      # remove trailing comment
 
-        # split by symbols, but do not remove symbols
-        line = re.split("([}{\(\)\[\].,;\+\-*/&|<>=~])", line)  # "class Main {" => ["class Main", "{"]
+        # get anything between quotation marks => \".*\"
+        # else split by these symbols => |[}{\(\)\[\].,;\+\-*/&|<>=~]
+        # do not remove results => use a bracket around the whole thing when using re.split
+        line = re.split('(\".*\"|[}{\(\)\[\].,;\+\-*/&|<>=~])', line)  # "class Main {" => ["class Main", "{"]
 
         split_lines += line
 
-    split_lines = [x for x in split_lines if x.strip() != ""]             # remove empty lines
+    split_lines = [x for x in split_lines if (x != None and x.strip() != "")]             # remove empty lines
+
+    print(split_lines)
 
     for i in range(len(split_lines)):
         split_lines[i] = split_lines[i].strip()
@@ -40,10 +44,10 @@ def tokenize(jack_filename):                                    # receives a fil
     # xml_tokens.insert(0, "<tokens>")
     # xml_tokens.append("</tokens>")                              # <tokens> ... </tokens>
 
-    for i in range(len(tokens)):
-        tokens[i] = tokens[i].replace("&", "&amp;")         # & => &amp;
-        tokens[i] = tokens[i].replace("<", "&lt;")          # < => &lt;
-        tokens[i] = tokens[i].replace(">", "&gt;")          # > => &gt;
+    # for i in range(len(tokens)):
+    #     tokens[i] = tokens[i].replace("&", "&amp;")         # & => &amp;
+    #     tokens[i] = tokens[i].replace("<", "&lt;")          # < => &lt;
+    #     tokens[i] = tokens[i].replace(">", "&gt;")          # > => &gt;
     return tokens
     
 

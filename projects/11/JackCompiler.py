@@ -1,7 +1,9 @@
 import os
 import sys
-import JackTokenizer
-import CompilationEngine
+import JackTokenizer        # generates set of tokens from each .jack file
+import CompilationEngine    # receives tokens and calls VMWriter write functions
+import SymbolTable          # keeps track of class-scope and subroutine-scope symbols (field, static, local, argument)
+import VMWriter             # writes VM instructions to each .vm file
 
 def main():
     pathname = sys.argv[1]                                  # python3 JackCompiler.py Square/
@@ -13,7 +15,7 @@ def main():
             os.mkdir(foldername)                            # create directory              
         
         filename = pathname.split("/")[-1]                  # Main.jack
-        generateXML(foldername, filename)                   # (Square/mine/, Main.jack)
+        generateFile(foldername, filename)                  # (Square/mine/, Main.jack)
 
     elif os.path.isdir(pathname):                           # Square/
         if pathname.endswith("/"):
@@ -25,24 +27,24 @@ def main():
             os.mkdir(foldername)                            # make directory
         
         for filename in os.listdir(pathname):       
+            if filename.endswith(".jack"):
+                class_name = filename.split(".")[0]         # create list of class names, to avoid adding them to SymbolTable
+                SymbolTable.class_list.append(class_name)   # Ball, Bat, Main, PongGame, etc.
+
+        for filename in os.listdir(pathname):       
             if filename.endswith(".jack"):                  # Main.jack
-                generateXML(foldername, filename)           # (Square/mine/, Main.jack)
+                generateFile(foldername, filename)          # (Square/mine/, Main.jack)
 
-
-def generateXML(foldername, filename):                      # (Square/mine/, Main.jack)
+def generateFile(foldername, filename):                     # (Square/mine/, Main.jack)
 
     jack_filename = foldername.rsplit("/", 2)[0] + "/" + filename   # "Square" + "/" + "Main.jack"
     tokens = JackTokenizer.tokenize(jack_filename)                  # returns tokens generated from .jack file
 
-    xml_filename = foldername + filename.split(".")[0] + ".xml"     # Square/mine/Main.xml
-    xml_file = open(xml_filename, "w")
+    vm_filename = foldername + filename.split(".")[0] + ".vm"       # let VMWriter know what file to write to
+    VMWriter.initializeFile(vm_filename)                            # open .vm file to begin writing to it
 
-    parsed_tokens = CompilationEngine.compileTokens(tokens) # return parsed tokens
-
-    for i, token in enumerate(parsed_tokens):
-        parsed_tokens[i] += "\n"
-
-    xml_file.writelines(parsed_tokens)                      # write parsed tokens to xml file
-
+    # pass tokens from Tokenizer to CompilationEngine
+    class_name = filename.split(".")[0]
+    CompilationEngine.compileTokens(tokens, class_name)
 
 main()

@@ -1,314 +1,490 @@
-current_token_number = 0    # allow program to march through list of tokens
-tokens = []                 # tokens received from tokenizer
-parsed_tokens = []          # tokens after parsing by compilation engine is done
+# tokens are passed from JackTokenizer -> JackCompiler -> CompilationEngine
+# CompilationEngine calls write functions of VMWriter module to write VM instructions
 
-def compileTokens(token_list):
-    global tokens, parsed_tokens, current_token_number
+import SymbolTable                  # keeps track of class-scope and subroutine-scope symbols (field, static, local, argument)
+import VMWriter                     # writes VM instructions to each .vm file
 
-    current_token_number = 0        # need to reset because there are multiple .jack files
+current_token_number = 0            # allow program to march through list of tokens
+tokens = []                         # tokens received from tokenizer (used as global variable)
+class_name = ""                     # global class name
+
+global_while_index = -1             # allow unique WHILE labels when generating whileStatements
+global_if_index = -1                # allow unique IF labels when generating ifStatements
+
+def compileTokens(token_list, input_class): # called by JackCompiler, passing in current list of tokens and current class
+    print("---COMPILING TOKENS---")
+
+    SymbolTable.startClass()        # resets symbol table for class and subroutine, as well as indices
+
+    global tokens, current_token_number, class_name
+
+    current_token_number = 0        # reset; because there are multiple .jack files, thus
     tokens = token_list             # compileTokens will be called multiple times
-    parsed_tokens = []              # reset
+    class_name = input_class        # current class being compiled
 
     compile_class()                 # every .jack file begins with class declaration 
-    return parsed_tokens
+
+    print("---DONE COMPILING TOKENS---")
+
 
 def compile_class():                # class className { classVarDec* subroutineDec* }
-    add_token("<class>")
+    print("---COMPILING CLASS---")
 
-    compile_token()     # class
-    compile_token()     # className
-    compile_token()     # {
+    advance()                       # class
+    advance()                       # className
+    advance()                       # {
 
     while (get_current_token() in ["static", "field"]): # check if any classVarDec to parse
         compile_classVarDec()
     
     while (get_current_token() in ["constructor", "function", "method"]):   # check if any subroutineDec to parse
-        compile_subroutineDec()
+        compile_subroutine()
 
-    compile_token()     # }
-        
-    add_token("</class>")
+    print("---DONE COMPILING CLASS---")
 
 def compile_classVarDec():          # (static | field) type varName (, varName)* ;
-    add_token("<classVarDec>")
+    print("---COMPILING CLASS VAR DEC")
 
-    compile_token()     # static / field
-    compile_token()     # type
-    compile_token()     # varName
+    var_kind = get_and_advance()    # static / field
+    var_type = get_and_advance()    # type; defined only once per classVarDec
+    var_name = get_and_advance()    # varName
 
-    while (not get_current_token() == ";"):
-        compile_token()
+    SymbolTable.define(var_name, var_type, var_kind)
 
-    compile_token()     # ;
+    while (get_current_token() != ";"): # field int x, y; 
+        advance()
+        var_name = get_and_advance()
+        SymbolTable.define(var_name, var_type, var_kind)
+        
+    advance()                       # ;
 
-    add_token("</classVarDec>")
+    print("---DONE COMPILING CLASS---")
 
-def compile_subroutineDec():        # (constructor | function | method) (void | type) subroutineName 
-    add_token("<subroutineDec>")    # ( paramaterList ) subroutineBody
+def compile_subroutine():           # (constructor | function | method) (void | type) subroutineName 
+    print("---COMPILING SUBROUTINE---")
 
-    compile_token()                 # constructor / function / method
-    compile_token()                 # void / type    
-    compile_token()                 # subroutineName
+    SymbolTable.startSubroutine()   # resets subroutine-scope variables (local, argument)
 
-    compile_token()                 # (
+    subroutine_kind = get_and_advance()     # constructor | function | method
+    advance()                               # void | type
+    subroutine_name = get_and_advance()     # subroutineName
+
+    if subroutine_kind == "method":
+        SymbolTable.define("this", get_class_name(), "argument")
+
+    advance()                       # (
     compile_parameterList()
-    compile_token()                 # )
+    advance()                       # )
 
-    compile_subroutineBody()
+    advance()                       # {
+    
+    while get_current_token() == "var":
+        compile_varDec()
+    
+    function_name = get_class_name() + "." + subroutine_name
+    num_locals = SymbolTable.varCount("local")
+    VMWriter.writeFunction(function_name, num_locals)
 
-    add_token("</subroutineDec>")
+    if subroutine_kind == "constructor":
+        num_fields = SymbolTable.varCount("field")  # get number of field (instance) variables declared in current subroutine
+        VMWriter.writePush("constant", num_fields)
+        VMWriter.writeCall("Memory.alloc", 1)       # call Memory.alloc, after pushing the number onto the stack
+        VMWriter.writePop("pointer", 0)             # store pointer returned in pointer 0
+    elif subroutine_kind == "method":
+        VMWriter.writePush("argument", 0)
+        VMWriter.writePop("pointer", 0)
+
+    compile_statements()
+    advance()                       # } 
+
+    print("---DONE COMPILING SUBROUTINE---")
 
 def compile_parameterList():        # (type varName (, type varName)*)?
-    add_token("<parameterList>")
+    print("---COMPILING PARAMETER LIST---")
 
-    while (not get_current_token() == ")"):
-        compile_token()
+    if get_current_token() != ")":
+        var_type = get_and_advance()
+        var_name = get_and_advance()
 
-    add_token("</parameterList>")
+        SymbolTable.define(var_name, var_type, "argument")
+
+    while (get_current_token() != ")"):     # new(int Ax, int Ay, ...)
+        advance()                   # ,
+
+        var_type = get_and_advance()
+        var_name = get_and_advance()
+
+        SymbolTable.define(var_name, var_type, "argument")
+
+    print("---DONE COMPILING PARAMETER LIST---")
     
-def compile_subroutineBody():       # { varDec* statements }
-    add_token("<subroutineBody>")
-
-    compile_token()                 # {
-
-    while (get_current_token() == "var"):
-        compile_varDec()            # varDec*
-
-    compile_statements()
-
-    compile_token()                 # }
-
-    add_token("</subroutineBody>")
-
+    
 def compile_varDec():               # var type varName (, varName)* ;
-    add_token("<varDec>")
+    print("---COMPILING VAR DEC---")
+    advance()
+    var_type = get_and_advance()    # defined only once per varDec
+    var_name = get_and_advance()
 
-    while (not get_current_token() == ";"):
-        compile_token()
+    SymbolTable.define(var_name, var_type, "local")
+
+    while (get_current_token() != ";"):     # var int dx, dy, dz
+        advance()
+        var_name = get_and_advance()
+
+        SymbolTable.define(var_name, var_type, "local")
     
-    compile_token()                 # ;
+    advance()                       # ;
 
-    add_token("</varDec>")
+    print("---DONE COMPILING VAR DEC---")
 
 def compile_statements():           # statement*
-    add_token("<statements>")
+    print("---COMPILING STATEMENTS---")
+    token = ""
 
     while (get_current_token() in ["let", "if", "while", "do", "return"]):
-        compile_statement()
+        token = get_and_advance()
 
-    add_token("</statements>")
+        if token == "let":
+            compile_letStatement()
+        elif token == "if":
+            compile_ifStatement()
+        elif token == "while":
+            compile_whileStatement()
+        elif token == "do":
+            compile_doStatement()
+        elif token == "return":
+            compile_returnStatement()
 
-def compile_statement():            # let | if | while | do | return
-    token = get_current_token()
-
-    if token == "let":
-        compile_letStatement()
-    elif token == "if":
-        compile_ifStatement()
-    elif token == "while":
-        compile_whileStatement()
-    elif token == "do":
-        compile_doStatement()
-    elif token == "return":
-        compile_returnStatement()
-
-def compile_letStatement():         # let varName ([ expression ])? = expression;
-    add_token("<letStatement>")
-
-    compile_token()                 # let
-    compile_token()                 # varName
-
-    if (get_current_token() == "["):        # varName '[]' MUST represent an array indexing
-        compile_arrayIndex()                
-
-    compile_token()                 # =
-
-    compile_expression()            # expression
-
-    compile_token()                 # ;
-
-    add_token("</letStatement>")
-
-def compile_ifStatement():          # if ( expression ) { statements }
-    add_token("<ifStatement>")
-
-    compile_token()         # if
-
-    compile_token()         # ( expression )
-    compile_expression()    
-    compile_token()
-
-    compile_token()         # { statements }
-    compile_statements()
-    compile_token()
-
-    if (get_current_token() == "else"):
-        compile_token()         # else
-        compile_token()         # { statements }
-        compile_statements()
-        compile_token()
-
-    add_token("</ifStatement>")
-
-def compile_whileStatement():       # while ( expression ) { statements }
-    add_token("<whileStatement>")
-
-    compile_token()         # while
-
-    compile_token()         # ( expression )
-    compile_expression()    
-    compile_token()
-
-    compile_token()         # { statements }
-    compile_statements()
-    compile_token()
-
-    add_token("</whileStatement>")
+    print("---DONE COMPILING STATEMENTS---")
+    
 
 def compile_doStatement():          # do subroutineCall ;
-    add_token("<doStatement>")
+    print("---COMPILING DO STATEMENT---")
 
-    compile_token()                 # do
-    
     compile_subroutineCall()        # subroutineCall
+    VMWriter.writePop("temp", 0)
+    advance()   
 
-    compile_token()                 # ;
+    print("---DONE COMPILING DO STATEMENT---")
 
-    add_token("</doStatement>")
 
-def compile_returnStatement():      # return expression? ;
-    add_token("<returnStatement>")
+def compile_letStatement():         # let varName ([ expression ])? = expression;
+    print("---COMPILING LET STATEMENT---")
 
-    compile_token()                         # return
-    if (not get_current_token() == ";"):    # there must be an expression if current token is not ';'
+    var_name = get_and_advance()    # varName
+    var_kind = convert_kind(SymbolTable.kindOf(var_name))
+    var_index = SymbolTable.indexOf(var_name)
+
+    if (get_current_token() == "["):    # varName '[]' MUST represent an array indexing
+        advance()                       # [ expression ]
         compile_expression()
+        advance()
+
+        VMWriter.writePush(var_kind, var_index)
+        VMWriter.writeArithmetic("add")
+
+        VMWriter.writePop("temp", 0)
         
-    compile_token()                         # ;
-    add_token("</returnStatement>")
+        advance()                   # =
+        compile_expression()
+        advance()                   # ;
 
-def compile_subroutineCall():
-    while (not get_current_token() == ";"):
-        if get_current_token() == "(":
-            compile_token()
-            compile_expressionList()
+        VMWriter.writePush("temp", 0)
+        VMWriter.writePop("pointer", 1)
+        VMWriter.writePop("that", 0)
+    else:
+        advance()                   # =
+        compile_expression()
+        advance()                   # ;
 
-        compile_token()
+        VMWriter.writePop(var_kind, var_index)
+
+    print("---DONE COMPILING LET STATEMENT---")
+
+def compile_whileStatement():       # while ( expression ) { statements }
+    print("---COMPILING WHILE STATEMENT---")
+
+    global global_while_index
+    global_while_index += 1
+
+    while_index = global_while_index    # local var used; ensure while_index consistent throughout this function
+                                        # global_while_index may be changed by other functions without you knowing
+
+    VMWriter.writeLabel("WHILE_EXP" + str(while_index))         # label WHILE_1
+
+    advance()                       # (           
+    compile_expression()            # expression
+    VMWriter.writeArithmetic("not") # NOT expression
+    advance()                       # )
+    advance()                       # {
+
+    VMWriter.writeIfGoto("WHILE_END" + str(while_index))    # if-goto WHILE_END_1
+    compile_statements()
+    VMWriter.writeGoto("WHILE_EXP" + str(while_index))          # goto WHILE_1
+
+    VMWriter.writeLabel("WHILE_END" + str(while_index))
+    advance()                       # }
+
+    print("---DONE COMPILING WHILE STATEMENT---")
+
+
+def compile_returnStatement():              # return expression? ;
+    print("---COMPILING RETURN STATEMENT---")
+
+    if (get_current_token() != ";"):        # there must be an expression if current token is not ';'
+        compile_expression()                # push return value of expression onto stack
+    else:
+        VMWriter.writePush("constant", 0)   # if void function, push constant 0   
+
+    VMWriter.writeReturn()
+    advance()                               # ;
+
+    print("---DONE COMPILING RETURN STATEMENT---")
+
+
+def compile_ifStatement():          # if ( expression ) { statements }
+    print("---COMPILING IF STATEMENT---")
+
+    global global_if_index
+    global_if_index += 1
+    
+    if_index = global_if_index      # 
+
+    advance()                       # ( expression )
+    compile_expression()    
+    advance()
+
+    advance()                       # {
+
+    VMWriter.writeIfGoto("IF_TRUE" + str(if_index))
+    VMWriter.writeGoto("IF_FALSE" + str(if_index))
+
+    VMWriter.writeLabel("IF_TRUE" + str(if_index))
+    compile_statements()
+    VMWriter.writeGoto("IF_END" + str(if_index))
+
+    advance()                       # }
+
+    VMWriter.writeLabel("IF_FALSE" + str(if_index))
+
+    if (get_current_token() == "else"):
+        advance()                   # else
+        advance()                   # { statements }
+        compile_statements()
+        advance()
+
+    VMWriter.writeLabel("IF_END" + str(if_index))
 
 def compile_expression():           # term (op term)*
-    add_token("<expression>")
-
-    compile_term()          # term
+    print("---COMPILING EXPRESSION---")
+    compile_term()                  # term
 
     while (get_current_token() in operator_list):   # an operator has been spotted!
-        compile_token()     # op
-        compile_term()      # term
+        op = get_and_advance()      # op
+        compile_term()              # term
 
-    add_token("</expression>")
+        if op in ARITHMETIC.keys():
+            VMWriter.writeArithmetic(ARITHMETIC[op])
+        elif op == "*":
+            VMWriter.writeCall("Math.multiply", 2)
+        elif op == "/":
+            VMWriter.writeCall("Math.divide", 2)
 
-def compile_arrayIndex():           # [1]
-    compile_token()                 # <symbol> [ </symbol>
-    add_token("<expression>")       # <expression>
-    add_token("<term>")             #   <term>
-    compile_token()                 #     <integerConstant> 1 </integerConstant>
-    add_token("</term>")            #   </term>
-    add_token("</expression>")      # </expression>
-    compile_token()                 # <symbol> ] </symbol>
+    print("---DONE COMPILING EXPRESSION---")
 
+
+
+# integerConstant | stringConstant | keywordConstant | varName |
+# varName '[' expression ']' | subroutineCall | '(' expression ')' | unaryOp term
 def compile_term():                 # may contain array indexing[], subroutineCall, or ( expression )
-    add_token("<term>")
-    lookahead_type = "array_entry"              # default compile array entry
+    print("---COMPILING TERM---")
 
-    if (get_current_token() in ["-", "~"]):     # unary operators (-j)
-        compile_token()                         # -
-        compile_term()                          # j
+    if get_current_token() in ARITHMETIC_UNARY.keys():
+        unary_op = get_and_advance()    # unaryOp
+        compile_term()                  # term
+        VMWriter.writeArithmetic(ARITHMETIC_UNARY[unary_op])
+    elif get_current_token() == "(":
+        advance()
+        compile_expression()
+        advance()
+    elif get_current_type() == "integerConstant":
+        VMWriter.writePush("constant", get_current_token())
+        advance()
+    elif get_current_type() == "stringConstant":
+        compile_string()
+    elif get_current_type() == "keyword":
+        compile_keyword()
+    else:                           # var / subroutine
+        if get_next_token() == "[": # array
+            array_name = get_and_advance()
 
-    while (not get_current_token() in operator_list):
-        if get_current_token() in [",", ";", "}", ")"]:
-            break
+            advance()
+            compile_expression()
+            advance()
 
-        if get_current_token() == "]":
-            compile_token()
-            break
+            array_kind = SymbolTable.kindOf(array_name)
+            array_index = SymbolTable.indexOf(array_name)
+            VMWriter.writePush(convert_kind(array_kind), array_index)
 
-        if get_current_token() == ".":
-            lookahead_type = "subroutine_call"      # anticipate to compile subroutine call
+            VMWriter.writeArithmetic("add")
+            VMWriter.writePop("pointer", 1)
+            VMWriter.writePush("that", 0)
+        elif get_next_token() in [".", "("]:    # subroutineCall
+            compile_subroutineCall()
+        else:
+            var_name = get_and_advance()
+            var_kind = convert_kind(SymbolTable.kindOf(var_name))
+            var_index = SymbolTable.indexOf(var_name)
+            VMWriter.writePush(var_kind, var_index)
 
-        if get_current_token() == "[":
-            compile_arrayIndex()
-            break
-
-        if get_current_token() == "(":
-            compile_token()
-
-            if lookahead_type == "subroutine_call":
-                compile_expressionList()
-            else:
-                compile_expression()
-        
-        compile_token()
-        
-    
-    add_token("</term>")
+    print("---DONE COMPILING TERM---")
 
 def compile_expressionList():       # (expression (, expression)*)?
+    print("---COMPILING EXPRESSION LIST---")
 
-    add_token("<expressionList>")
+    number_args = 0
 
-    if (not get_current_token() == ")"):    # if not empty expression list => not '()'
+    if get_current_token() != ")":
+        number_args += 1
         compile_expression()
-        
 
-    while (get_current_token() == ","):     # more expressions in the list spotted!
-        compile_token()                     # ,
-        compile_expression()                # expression
+    while get_current_token() != ")":
+        number_args += 1
+        advance()                   # ,
+        compile_expression()
+
+    print("---DONE COMPILING EXPRESSION LIST---")
+    return number_args
+
     
-    add_token("</expressionList>")
+def compile_keyword():
+    print("---COMPILING KEYWORD---")
 
-def compile_token():                # used to add TERMINAL elements (tokens) to parsed_tokens
+    keyword = get_and_advance()
+
+    if keyword == "this":
+        VMWriter.writePush("pointer", 0)
+    else:
+        VMWriter.writePush("constant", 0)
+
+        if keyword == "true":
+            VMWriter.writeArithmetic("not")
+
+# subroutineName ( expressionList ) | (className | varName) . subroutineName ( expressionList )
+def compile_subroutineCall():
+    print("---COMPILING SUBROUTINE CALL---")
+
+    identifier = get_and_advance()
+    function_name = identifier
+    number_args = 0
+    
+    if get_current_token() == ".":                  # className (class) | varName (object)
+        advance()                                   # .
+        subroutine_name = get_and_advance()         # subroutine_name
+
+        var_type = SymbolTable.typeOf(identifier)
+
+        if var_type != "NONE":      # object_instance.subroutineCall(params)
+            obj_type = SymbolTable.typeOf(identifier)
+            obj_kind = convert_kind(SymbolTable.kindOf(identifier))
+            obj_index = SymbolTable.indexOf(identifier)
+            VMWriter.writePush(obj_kind, obj_index)      # push local 3
+
+            function_name = obj_type + "." + subroutine_name
+            number_args += 1
+        else:                       # class_name.subroutineCall(params)
+            class_name = identifier
+            function_name = class_name + "." + subroutine_name
+
+    elif get_current_token() == "(":                # subroutineName ( expressionList )
+        subroutine_name = identifier
+        class_name = get_class_name()
+        function_name = class_name + "." + subroutine_name
+        number_args += 1
+
+        VMWriter.writePush("pointer", 0)            # this is a method call
+
+    advance()       # (
+    number_args += compile_expressionList()
+    advance()       # )
+
+    VMWriter.writeCall(function_name, number_args)
+    print("---DONE COMPILING SUBROUTINE CALL---")
+
+
+def compile_string():
+    print("---COMPILING STRING---")
+
+    string = get_and_advance()
+
+    VMWriter.writePush("constant", len(string))
+    VMWriter.writeCall("String.new", 1)
+
+    for char in string:
+        VMWriter.writePush("constant", ord(char))
+        VMWriter.writeCall("String.appendChar", 2)
+
+    print("---DONE COMPILING STRING---")
+
+        
+def get_and_advance():              # get current token, then increment current_token_number
     token = get_current_token()
-    token_type = get_current_type()
-
-    if token_type == "stringConstant":
-        token = token[1:-1]         # "some string constant" => some string constant
-
-    token_list = []
-    add_token(f"<{token_type}> {token} </{token_type}>")
-
-    advance()                       # increase current_token_number
-
-def add_token(token):               # add single token to parsed_tokens
-    global tokens, parsed_tokens, current_token_number
-
-    parsed_tokens.append(token)
-
-def add_tokens(token_list):         # add multiple tokens to parsed_tokens
-    global tokens, parsed_tokens, current_token_number
-
-    parsed_tokens += token_list
+    advance()
+    return token
 
 def advance():                      # increment current_token_number
-    global tokens, parsed_tokens, current_token_number
+    global tokens, current_token_number
+
+    print(tokens[current_token_number])
 
     current_token_number += 1
 
 def get_current_token():            # returns the current token to be parsed
-    global tokens, parsed_tokens, current_token_number
+    global tokens, current_token_number
 
-    return tokens[current_token_number]
+    try:
+        token = tokens[current_token_number]
+    except:
+        token = "FAILED_GET_CURRENT_TOKEN"
+
+    # if token.startswith('"'):   # stringConstant
+    #     return token[1:-1]
+
+    return token
+
+def get_next_token():
+    global tokens, current_token_number
+
+    try:
+        return tokens[current_token_number + 1]
+    except:
+        return "FAILED_GET_NEXT_TOKEN"
+
+def get_previous_token():
+    global tokens, current_token_number
+
+    return tokens[current_token_number - 1]  
 
 def get_current_type():             # returns the token_type of the current token to be parsed
-    global tokens, parsed_tokens, current_token_number
+    global tokens, current_token_number
 
-    if get_current_token() in keyword_list:
+    token = get_current_token()
+
+    if token in keyword_list:
         return "keyword"
-    elif get_current_token() in symbol_list:
+    elif token in symbol_list:
         return "symbol"
-    elif get_current_token().isdigit():
+    elif token.isdigit():
         return "integerConstant"
-    elif get_current_token().startswith('"'):
+    elif token.startswith('"'):
         return "stringConstant"
     else:
         return "identifier"
+
+def get_class_name():
+    global class_name
+
+    return class_name 
 
 keyword_list = ['class', 'constructor', 'function', 'method', 'field', 'static', 'var', 'int', 
                 'char', 'boolean', 'void', 'true', 'false', 'null', 'this', 'let', 'do', 'if',
@@ -316,4 +492,25 @@ keyword_list = ['class', 'constructor', 'function', 'method', 'field', 'static',
 
 symbol_list = ['{', '}', '(', ')', '[', ']', '.', ',', ';', '+', '-', '*', '/', '&amp;', '|', '&lt;', '&gt;', '=', '~']
 
-operator_list = ['+', '-', '*', '/', '&amp;', '|', '&lt;', '&gt;', '=', '~']
+operator_list = ['+', '-', '*', '/', '&', '|', '<', '>', '=']
+
+ARITHMETIC = {
+    '+': 'add',
+    '-': 'sub',
+    '=': 'eq',
+    '>': 'gt',
+    '<': 'lt',
+    '&': 'and',
+    '|': 'or'
+}
+
+ARITHMETIC_UNARY = {
+    '-': 'neg',
+    '~': 'not'
+}
+
+def convert_kind(kind):     # converts "field" to "this"
+    if kind == "field": 
+        return "this"
+    
+    return kind
