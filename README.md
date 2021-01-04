@@ -1,9 +1,9 @@
 # nand2tetris - my completed files
 
 ### Attribution
-In 2020, I completed two Coursera courses: Part I and Part II of nand2tetris (Build a Modern Computer from First Principles: Nand to Tetris). I completed Part I a few years ago, but wanted to re-do it because (a) it is wonderful, (b) to re-establish my foundation to tackle Part II.
+In early-2020, I completed two courses: Part I and Part II of nand2tetris (Build a Modern Computer from First Principles: Nand to Tetris). I completed Part I a few years ago, but wanted to re-do it because (a) it is wonderful, (b) to re-establish my foundation to tackle Part II.
 - https://www.nand2tetris.org/
-- https://www.coursera.org/learn/build-a-computer
+- https://www.coursera.org/learn/build-a-computer (the course and lectures are hosted on Coursera platform)
 
 I wrote programs in Python to complete the assignments, but most of the files in this repository originated from the course.
 
